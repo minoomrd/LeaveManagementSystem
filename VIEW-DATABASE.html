@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PostgreSQL Database Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 30px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #eee;
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            background: #f5f5f5;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+        
+        .tab:hover {
+            background: #e0e0e0;
+        }
+        
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .content {
+            display: none;
+        }
+        
+        .content.active {
+            display: block;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+        }
+        
+        th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        tr:hover {
+            background: #f5f5f5;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-bottom: 20px;
+        }
+        
+        .refresh-btn:hover {
+            background: #5568d3;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        
+        .badge.active {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .badge.inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗄️ PostgreSQL Database Viewer</h1>
+        <p class="subtitle">View your Leave Management System database data</p>
+        
+        <div id="status" class="status disconnected">
+            <span>⏳</span>
+            <span>Checking connection...</span>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('users')">Users</button>
+            <button class="tab" onclick="showTab('companies')">Companies</button>
+            <button class="tab" onclick="showTab('leave-requests')">Leave Requests</button>
+            <button class="tab" onclick="showTab('leave-balances')">Leave Balances</button>
+        </div>
+        
+        <button class="refresh-btn" onclick="refreshData()">🔄 Refresh Data</button>
+        
+        <div id="users" class="content active">
+            <h2>Users</h2>
+            <div id="users-loading" class="loading">Loading users...</div>
+            <div id="users-error" class="error" style="display:none;"></div>
+            <table id="users-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Full Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody"></tbody>
+            </table>
+        </div>
+        
+        <div id="companies" class="content">
+            <h2>Companies</h2>
+            <div id="companies-loading" class="loading">Loading companies...</div>
+            <div id="companies-error" class="error" style="display:none;"></div>
+            <table id="companies-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Contact Email</th>
+                        <th>Owner ID</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                    </tr>
+                </thead>
+                <tbody id="companies-tbody"></tbody>
+            </table>
+        </div>
+        
+        <div id="leave-requests" class="content">
+            <h2>Leave Requests</h2>
+            <div id="leave-requests-loading" class="loading">Loading leave requests...</div>
+            <div id="leave-requests-error" class="error" style="display:none;"></div>
+            <table id="leave-requests-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>User</th>
+                        <th>Leave Type</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody id="leave-requests-tbody"></tbody>
+            </table>
+        </div>
+        
+        <div id="leave-balances" class="content">
+            <h2>Leave Balances</h2>
+            <div id="leave-balances-loading" class="loading">Loading leave balances...</div>
+            <div id="leave-balances-error" class="error" style="display:none;"></div>
+            <table id="leave-balances-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>User</th>
+                        <th>Leave Type</th>
+                        <th>Balance</th>
+                        <th>Unit</th>
+                        <th>Updated At</th>
+                    </tr>
+                </thead>
+                <tbody id="leave-balances-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:5132/api/database';
+        
+        function showTab(tabName) {
+            // Hide all tabs and content
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+            
+            // Show selected tab and content
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+            
+            // Load data for the selected tab
+            loadTabData(tabName);
+        }
+        
+        async function checkStatus() {
+            try {
+                // Add timeout to fetch request
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+                
+                const response = await fetch(`${API_BASE}/status`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                    mode: 'cors',
+                    cache: 'no-cache',
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                const statusDiv = document.getElementById('status');
+                if (data.connected) {
+                    statusDiv.className = 'status connected';
+                    statusDiv.innerHTML = `<span>✅</span><span>Connected to ${data.database} on ${data.server}</span>`;
+                } else {
+                    statusDiv.className = 'status disconnected';
+                    statusDiv.innerHTML = `<span>❌</span><span>${data.message || 'Database not connected'}</span>`;
+                }
+            } catch (error) {
+                const statusDiv = document.getElementById('status');
+                statusDiv.className = 'status disconnected';
+                if (error.name === 'AbortError') {
+                    statusDiv.innerHTML = `<span>⏱️</span><span>Request timed out. API may be slow or PostgreSQL is not installed.</span>`;
+                } else {
+                    statusDiv.innerHTML = `<span>❌</span><span>Cannot connect to API. Make sure backend is running on http://localhost:5132</span>`;
+                }
+            }
+        }
+        
+        async function loadTabData(tabName) {
+            const endpoints = {
+                'users': 'users',
+                'companies': 'companies',
+                'leave-requests': 'leave-requests',
+                'leave-balances': 'leave-balances'
+            };
+            
+            const endpoint = endpoints[tabName];
+            if (!endpoint) return;
+            
+            const loadingId = `${tabName}-loading`;
+            const errorId = `${tabName}-error`;
+            const tableId = `${tabName}-table`;
+            const tbodyId = `${tabName}-tbody`;
+            
+            document.getElementById(loadingId).style.display = 'block';
+            document.getElementById(errorId).style.display = 'none';
+            document.getElementById(tableId).style.display = 'none';
+            
+            try {
+                // Add timeout to fetch request
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+                
+                const response = await fetch(`${API_BASE}/${endpoint}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                    mode: 'cors',
+                    cache: 'no-cache',
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                    throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (response.ok && Array.isArray(data)) {
+                    renderTable(tabName, data, tbodyId);
+                    document.getElementById(loadingId).style.display = 'none';
+                    document.getElementById(tableId).style.display = 'table';
+                } else {
+                    throw new Error(data.message || 'Failed to load data');
+                }
+            } catch (error) {
+                document.getElementById(loadingId).style.display = 'none';
+                document.getElementById(errorId).style.display = 'block';
+                let errorMsg = error.message;
+                if (error.name === 'AbortError') {
+                    errorMsg = 'Request timed out. PostgreSQL is not installed or not running. Install PostgreSQL to view database data.';
+                } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    errorMsg = 'Cannot connect to API. Make sure backend is running on http://localhost:5132';
+                }
+                document.getElementById(errorId).innerHTML = `<strong>Error:</strong> ${errorMsg}<br><br><small>Tip: Install PostgreSQL and run SETUP-POSTGRESQL-DATABASE.bat to fix this.</small>`;
+                console.error('Fetch error:', error);
+            }
+        }
+        
+        function renderTable(tabName, data, tbodyId) {
+            const tbody = document.getElementById(tbodyId);
+            tbody.innerHTML = '';
+            
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="100%" style="text-align:center;padding:40px;">No data found</td></tr>';
+                return;
+            }
+            
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                
+                if (tabName === 'users') {
+                    row.innerHTML = `
+                        <td>${item.id}</td>
+                        <td>${item.fullName || '-'}</td>
+                        <td>${item.email || '-'}</td>
+                        <td>${item.role || '-'}</td>
+                        <td><span class="badge ${item.status === 'Active' ? 'active' : 'inactive'}">${item.status || '-'}</span></td>
+                        <td>${item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'}</td>
+                    `;
+                } else if (tabName === 'companies') {
+                    row.innerHTML = `
+                        <td>${item.id}</td>
+                        <td>${item.name || '-'}</td>
+                        <td>${item.contactEmail || '-'}</td>
+                        <td>${item.ownerId || '-'}</td>
+                        <td><span class="badge ${item.status === 'Active' ? 'active' : 'inactive'}">${item.status || '-'}</span></td>
+                        <td>${item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'}</td>
+                    `;
+                } else if (tabName === 'leave-requests') {
+                    row.innerHTML = `
+                        <td>${item.id}</td>
+                        <td>${item.userName || '-'}</td>
+                        <td>${item.leaveTypeName || '-'}</td>
+                        <td>${item.startDateTime ? new Date(item.startDateTime).toLocaleDateString() : '-'}</td>
+                        <td>${item.endDateTime ? new Date(item.endDateTime).toLocaleDateString() : '-'}</td>
+                        <td>${item.durationAmount || 0} ${item.durationUnit || ''}</td>
+                        <td><span class="badge ${item.status === 'Approved' ? 'active' : 'inactive'}">${item.status || '-'}</span></td>
+                        <td>${item.reason || '-'}</td>
+                    `;
+                } else if (tabName === 'leave-balances') {
+                    row.innerHTML = `
+                        <td>${item.id}</td>
+                        <td>${item.userName || '-'}</td>
+                        <td>${item.leaveTypeName || '-'}</td>
+                        <td>${item.balanceAmount || 0}</td>
+                        <td>${item.balanceUnit || '-'}</td>
+                        <td>${item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '-'}</td>
+                    `;
+                }
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        function refreshData() {
+            checkStatus();
+            const activeTab = document.querySelector('.content.active').id;
+            loadTabData(activeTab);
+        }
+        
+        // Initialize
+        checkStatus();
+        loadTabData('users');
+        
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            checkStatus();
+            const activeTab = document.querySelector('.content.active').id;
+            loadTabData(activeTab);
+        }, 30000);
+    </script>
+</body>
+</html>
+

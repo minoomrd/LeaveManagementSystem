@@ -1,0 +1,36 @@
+using LeaveManagementSystem.Application.DTOs;
+
+namespace LeaveManagementSystem.Application.Interfaces;
+
+/// <summary>
+/// Service interface for leave balance operations.
+/// Following Interface Segregation Principle - defines only leave balance-related operations.
+/// Following Dependency Inversion Principle - high-level modules depend on abstraction.
+/// </summary>
+public interface ILeaveBalanceService
+{
+    /// <summary>
+    /// Gets leave balances for a user
+    /// </summary>
+    /// <param name="userId">User ID</param>
+    /// <returns>Collection of leave balance DTOs</returns>
+    Task<IEnumerable<LeaveBalanceDto>> GetLeaveBalancesByUserIdAsync(Guid userId);
+
+    /// <summary>
+    /// Gets a specific leave balance for a user and leave type
+    /// </summary>
+    /// <param name="userId">User ID</param>
+    /// <param name="leaveTypeId">Leave type ID</param>
+    /// <returns>Leave balance DTO if found, null otherwise</returns>
+    Task<LeaveBalanceDto?> GetLeaveBalanceAsync(Guid userId, Guid leaveTypeId);
+
+    /// <summary>
+    /// Updates leave balance after a leave request is approved
+    /// </summary>
+    /// <param name="userId">User ID</param>
+    /// <param name="leaveTypeId">Leave type ID</param>
+    /// <param name="durationAmount">Duration amount to deduct</param>
+    /// <param name="durationUnit">Duration unit</param>
+    Task UpdateLeaveBalanceAsync(Guid userId, Guid leaveTypeId, decimal durationAmount, Domain.Enums.LeaveUnit durationUnit);
+}
+
