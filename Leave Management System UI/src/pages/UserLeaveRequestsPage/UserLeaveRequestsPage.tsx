@@ -30,8 +30,8 @@ import { leaveRequestService } from '../../services/ApiService'
 import { useAuth } from '../../contexts/AuthContext'
 
 /**
- * Leave Requests Page Component
- * Following Single Responsibility Principle - manages only leave requests
+ * User Leave Requests Page Component
+ * Following Single Responsibility Principle - manages only user's own leave requests
  * Following Dependency Inversion Principle - depends on service abstractions
  */
 // Static leave types - Daily (Day=2) and Hourly (Hour=1)
@@ -41,7 +41,7 @@ const LEAVE_TYPES = [
   { id: '1', name: 'Hourly', unit: 1 }, // 1 = Hour (LeaveUnit.Hour)
 ] as const
 
-const LeaveRequestsPage: React.FC = () => {
+const UserLeaveRequestsPage: React.FC = () => {
   const { user } = useAuth()
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
@@ -58,7 +58,7 @@ const LeaveRequestsPage: React.FC = () => {
 
   /**
    * Load leave requests
-   * Following Single Responsibility Principle - loads only leave requests
+   * Following Single Responsibility Principle - loads only user's own leave requests
    */
   useEffect(() => {
     if (user?.id) {
@@ -67,9 +67,8 @@ const LeaveRequestsPage: React.FC = () => {
   }, [user?.id])
 
   /**
-   * Load all leave requests from API
-   * Following Command pattern - encapsulates load operation
-   * This page is for ADMIN ONLY - shows all requests from all users
+   * Load user's leave requests from API
+   * Uses /api/LeaveRequests/user/{userId} endpoint
    */
   const loadLeaveRequests = async () => {
     try {
@@ -79,8 +78,8 @@ const LeaveRequestsPage: React.FC = () => {
         return
       }
 
-      // Admin page - show all requests from all users
-      const requests = await leaveRequestService.getAllLeaveRequests()
+      // Get only the logged-in user's requests using the user-specific endpoint
+      const requests = await leaveRequestService.getLeaveRequestsByUserId(user.id)
       setLeaveRequests(requests)
       setError('') // Clear any previous errors
     } catch (error: any) {
@@ -112,7 +111,6 @@ const LeaveRequestsPage: React.FC = () => {
       setIsLoading(false)
     }
   }
-
 
   /**
    * Handle create new leave request
@@ -244,10 +242,10 @@ const LeaveRequestsPage: React.FC = () => {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
           <Typography variant="h4" gutterBottom>
-            All Leave Requests
+            My Leave Requests
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Manage and track all employee leave requests
+            View and manage your leave requests
           </Typography>
         </Box>
         <Button
@@ -277,7 +275,6 @@ const LeaveRequestsPage: React.FC = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Employee</TableCell>
               <TableCell>Leave Type</TableCell>
               <TableCell>Start Date</TableCell>
               <TableCell>End Date</TableCell>
@@ -290,19 +287,18 @@ const LeaveRequestsPage: React.FC = () => {
           <TableBody>
             {leaveRequests.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} align="center">
+                <TableCell colSpan={7} align="center">
                   <Typography color="text.secondary">No leave requests found</Typography>
                 </TableCell>
               </TableRow>
             ) : (
               leaveRequests.map((request) => (
                 <TableRow key={request.id} hover>
-                  <TableCell>{request.userName}</TableCell>
                   <TableCell>{request.leaveTypeName}</TableCell>
                   <TableCell>{formatDate(request.startDateTime)}</TableCell>
                   <TableCell>{formatDate(request.endDateTime)}</TableCell>
                   <TableCell>
-                    {request.durationAmount} {request.durationUnit === 1 ? 'Day(s)' : 'Hour(s)'}
+                    {request.durationAmount} {request.durationUnit === 1 ? 'Hour(s)' : 'Day(s)'}
                   </TableCell>
                   <TableCell>{request.reason || '-'}</TableCell>
                   <TableCell>
@@ -493,5 +489,5 @@ const LeaveRequestsPage: React.FC = () => {
   )
 }
 
-export default LeaveRequestsPage
+export default UserLeaveRequestsPage
 

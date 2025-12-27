@@ -23,7 +23,7 @@ import {
   FormControl,
   InputLabel,
 } from '@mui/material'
-import { Add as AddIcon } from '@mui/icons-material'
+import { Add as AddIcon, LockReset as LockResetIcon } from '@mui/icons-material'
 import { User, UserStatus, CreateUserDto, Role } from '../../types/models'
 import { userService, roleService } from '../../services/ApiService'
 
@@ -37,6 +37,9 @@ const UsersPage: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [openDialog, setOpenDialog] = useState<boolean>(false)
+  const [openResetPasswordDialog, setOpenResetPasswordDialog] = useState<boolean>(false)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [newPassword, setNewPassword] = useState<string>('')
   const [newUser, setNewUser] = useState<CreateUserDto>({
     fullName: '',
     email: '',
@@ -91,6 +94,49 @@ const UsersPage: React.FC = () => {
       loadData()
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to create user')
+    }
+  }
+
+  /**
+   * Handle open reset password dialog
+   * Following Command pattern - encapsulates reset password operation
+   */
+  const handleOpenResetPassword = (user: User) => {
+    setSelectedUser(user)
+    setNewPassword('')
+    setError('')
+    setOpenResetPasswordDialog(true)
+  }
+
+  /**
+   * Handle reset password
+   * Following Command pattern - encapsulates reset password operation
+   */
+  const handleResetPassword = async () => {
+    if (!selectedUser) return
+
+    try {
+      setError('')
+      if (!newPassword || newPassword.length < 6) {
+        setError('Password must be at least 6 characters long')
+        return
+      }
+
+      // Get the user's current data to preserve other fields
+      const userToUpdate: CreateUserDto = {
+        fullName: selectedUser.fullName,
+        email: selectedUser.email,
+        password: newPassword,
+        roleId: selectedUser.roleId,
+      }
+
+      await userService.updateUser(selectedUser.id, userToUpdate)
+      setOpenResetPasswordDialog(false)
+      setSelectedUser(null)
+      setNewPassword('')
+      loadData()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to reset password')
     }
   }
 
@@ -179,12 +225,13 @@ const UsersPage: React.FC = () => {
               <TableCell>Role</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Created At</TableCell>
+              <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} align="center">
+                <TableCell colSpan={6} align="center">
                   <Typography color="text.secondary">No users found</Typography>
                 </TableCell>
               </TableRow>
@@ -204,6 +251,16 @@ const UsersPage: React.FC = () => {
                     />
                   </TableCell>
                   <TableCell>{formatDate(user.createdAt)}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<LockResetIcon />}
+                      onClick={() => handleOpenResetPassword(user)}
+                    >
+                      Reset Password
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -259,6 +316,50 @@ const UsersPage: React.FC = () => {
           <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
           <Button onClick={handleCreateUser} variant="contained">
             Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={openResetPasswordDialog} onClose={() => setOpenResetPasswordDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Reset Password</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+            {selectedUser && (
+              <>
+                <Alert severity="info">
+                  Resetting password for: <strong>{selectedUser.fullName}</strong> ({selectedUser.email})
+                </Alert>
+                <TextField
+                  label="New Password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  fullWidth
+                  required
+                  helperText="Password must be at least 6 characters long"
+                  autoFocus
+                />
+              </>
+            )}
+            {error && (
+              <Alert severity="error" onClose={() => setError('')}>
+                {error}
+              </Alert>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setOpenResetPasswordDialog(false)
+            setSelectedUser(null)
+            setNewPassword('')
+            setError('')
+          }}>
+            Cancel
+          </Button>
+          <Button onClick={handleResetPassword} variant="contained" disabled={!newPassword || newPassword.length < 6}>
+            Reset Password
           </Button>
         </DialogActions>
       </Dialog>

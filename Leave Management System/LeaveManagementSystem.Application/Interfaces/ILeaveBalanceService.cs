@@ -25,6 +25,16 @@ public interface ILeaveBalanceService
     Task<LeaveBalanceDto?> GetLeaveBalanceAsync(Guid userId, Guid leaveTypeId);
 
     /// <summary>
+    /// Gets or creates a leave balance for a user and leave type.
+    /// If the balance doesn't exist, it will be created with the default entitlement.
+    /// </summary>
+    /// <param name="userId">User ID</param>
+    /// <param name="leaveTypeId">Leave type ID</param>
+    /// <param name="defaultUnit">Default unit for the balance if creating new</param>
+    /// <returns>Leave balance DTO</returns>
+    Task<LeaveBalanceDto> GetOrCreateLeaveBalanceAsync(Guid userId, Guid leaveTypeId, Domain.Enums.LeaveUnit defaultUnit);
+
+    /// <summary>
     /// Updates leave balance after a leave request is approved
     /// </summary>
     /// <param name="userId">User ID</param>

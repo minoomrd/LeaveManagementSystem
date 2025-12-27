@@ -6,7 +6,6 @@ import {
   Toolbar,
   List,
   Typography,
-  Divider,
   ListItem,
   ListItemButton,
   ListItemIcon,
@@ -41,12 +40,27 @@ interface NavItem {
  * Navigation items configuration
  * Following Open/Closed Principle - easy to extend with new items
  */
-const navItems: NavItem[] = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-  { text: 'Leave Requests', icon: <AssignmentIcon />, path: '/leave-requests' },
-  { text: 'Leave Balances', icon: <AccountBalanceIcon />, path: '/leave-balances' },
-  { text: 'Users', icon: <PeopleIcon />, path: '/users' },
-]
+const getNavItems = (userRole: string | undefined): NavItem[] => {
+  const baseItems: NavItem[] = [
+    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+  ]
+
+  // Show different leave requests page based on role
+  if (userRole === 'Admin' || userRole === 'SuperAdmin') {
+    baseItems.push({ text: 'Leave Requests', icon: <AssignmentIcon />, path: '/leave-requests' })
+  } else {
+    baseItems.push({ text: 'My Leave Requests', icon: <AssignmentIcon />, path: '/user-leave-requests' })
+  }
+
+  baseItems.push({ text: 'Leave Balances', icon: <AccountBalanceIcon />, path: '/leave-balances' })
+
+  // Only show Users menu for Admin and SuperAdmin
+  if (userRole === 'Admin' || userRole === 'SuperAdmin') {
+    baseItems.push({ text: 'Users', icon: <PeopleIcon />, path: '/users' })
+  }
+
+  return baseItems
+}
 
 const DRAWER_WIDTH = 240
 
@@ -172,7 +186,7 @@ const Layout: React.FC = () => {
         <Toolbar />
         <Box sx={{ overflow: 'auto' }}>
           <List>
-            {navItems.map((item) => (
+            {getNavItems(user?.roleName).map((item) => (
               <ListItem key={item.path} disablePadding>
                 <ListItemButton
                   selected={location.pathname === item.path}

@@ -30,24 +30,31 @@ const LeaveBalancesPage: React.FC = () => {
    * Following Single Responsibility Principle - loads only leave balances
    */
   useEffect(() => {
-    loadLeaveBalances()
-  }, [])
+    if (user?.id) {
+      loadLeaveBalances()
+    }
+  }, [user?.id])
 
   /**
    * Load all leave balances from API
    * Following Command pattern - encapsulates load operation
+   * Shows only logged-in user's balances for non-admin users
    */
   const loadLeaveBalances = async () => {
     try {
       setIsLoading(true)
+      if (!user?.id) {
+        return
+      }
+
       let balances: LeaveBalance[]
 
-      // If user is employee, show only their balances
-      if (user && user.roleName === 'Employee') {
-        balances = await leaveBalanceService.getLeaveBalancesByUserId(user.id)
-      } else {
-        // Admin/SuperAdmin sees all balances
+      // If user is Admin or SuperAdmin, show all balances
+      // Otherwise, show only the logged-in user's balances
+      if (user.roleName === 'Admin' || user.roleName === 'SuperAdmin') {
         balances = await leaveBalanceService.getAllLeaveBalances()
+      } else {
+        balances = await leaveBalanceService.getLeaveBalancesByUserId(user.id)
       }
 
       setLeaveBalances(balances)

@@ -19,10 +19,13 @@ public static class SeedData
         // Ensure database is created
         await context.Database.EnsureCreatedAsync();
 
-        // Check if data already exists
+        // Always ensure leave types exist (they might be missing even if users exist)
+        await SeedLeaveTypesAsync(context);
+
+        // Check if other data already exists
         if (await context.Users.AnyAsync())
         {
-            return; // Data already seeded
+            return; // Other data already seeded
         }
 
         // Create Roles first (using fixed GUIDs to match migration)
@@ -69,77 +72,9 @@ public static class SeedData
         if (existingAdminRole == null) context.Roles.Add(adminRole);
         if (existingSuperAdminRole == null) context.Roles.Add(superAdminRole);
 
-        // Create Leave Types
-        var annualLeaveType = new LeaveType
-        {
-            Id = Guid.NewGuid(),
-            Name = "Annual Leave",
-            Unit = LeaveUnit.Day,
-            Description = "Standard annual leave",
-            IsSickLeave = false,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        var sickLeaveType = new LeaveType
-        {
-            Id = Guid.NewGuid(),
-            Name = "Sick Leave",
-            Unit = LeaveUnit.Day,
-            Description = "Medical leave",
-            IsSickLeave = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        var hourlyLeaveType = new LeaveType
-        {
-            Id = Guid.NewGuid(),
-            Name = "Hourly Leave",
-            Unit = LeaveUnit.Hour,
-            Description = "Leave measured in hours",
-            IsSickLeave = false,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        context.LeaveTypes.AddRange(annualLeaveType, sickLeaveType, hourlyLeaveType);
-
-        // Create Leave Policies
-        var annualLeavePolicy = new LeavePolicy
-        {
-            Id = Guid.NewGuid(),
-            LeaveTypeId = annualLeaveType.Id,
-            EntitlementAmount = 20,
-            EntitlementUnit = LeaveUnit.Day,
-            RenewalPeriod = RenewalPeriod.Yearly,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        var sickLeavePolicy = new LeavePolicy
-        {
-            Id = Guid.NewGuid(),
-            LeaveTypeId = sickLeaveType.Id,
-            EntitlementAmount = 10,
-            EntitlementUnit = LeaveUnit.Day,
-            RenewalPeriod = RenewalPeriod.Yearly,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        var hourlyLeavePolicy = new LeavePolicy
-        {
-            Id = Guid.NewGuid(),
-            LeaveTypeId = hourlyLeaveType.Id,
-            EntitlementAmount = 40,
-            EntitlementUnit = LeaveUnit.Hour,
-            RenewalPeriod = RenewalPeriod.Monthly,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        context.LeavePolicies.AddRange(annualLeavePolicy, sickLeavePolicy, hourlyLeavePolicy);
+        // Get leave types (already created by SeedLeaveTypesAsync)
+        var dailyLeaveType = await context.LeaveTypes.FirstAsync(lt => lt.Name == "Daily");
+        var hourlyLeaveType = await context.LeaveTypes.FirstAsync(lt => lt.Name == "Hourly");
 
         // Create Company
         var company = new Company
@@ -196,24 +131,13 @@ public static class SeedData
 
         context.Users.AddRange(adminUser, employee1, employee2);
 
-        // Create Leave Balances
-        var employee1AnnualBalance = new LeaveBalance
+        // Create Leave Balances (only if they don't exist)
+        var employee1DailyBalance = new LeaveBalance
         {
             Id = Guid.NewGuid(),
             UserId = employee1.Id,
-            LeaveTypeId = annualLeaveType.Id,
+            LeaveTypeId = dailyLeaveType.Id,
             BalanceAmount = 15,
-            BalanceUnit = LeaveUnit.Day,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        var employee1SickBalance = new LeaveBalance
-        {
-            Id = Guid.NewGuid(),
-            UserId = employee1.Id,
-            LeaveTypeId = sickLeaveType.Id,
-            BalanceAmount = 8,
             BalanceUnit = LeaveUnit.Day,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -230,34 +154,33 @@ public static class SeedData
             UpdatedAt = DateTime.UtcNow
         };
 
-        var employee2AnnualBalance = new LeaveBalance
+        var employee2DailyBalance = new LeaveBalance
         {
             Id = Guid.NewGuid(),
             UserId = employee2.Id,
-            LeaveTypeId = annualLeaveType.Id,
+            LeaveTypeId = dailyLeaveType.Id,
             BalanceAmount = 18,
             BalanceUnit = LeaveUnit.Day,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
-        var employee2SickBalance = new LeaveBalance
+        var employee2HourlyBalance = new LeaveBalance
         {
             Id = Guid.NewGuid(),
             UserId = employee2.Id,
-            LeaveTypeId = sickLeaveType.Id,
-            BalanceAmount = 10,
-            BalanceUnit = LeaveUnit.Day,
+            LeaveTypeId = hourlyLeaveType.Id,
+            BalanceAmount = 30,
+            BalanceUnit = LeaveUnit.Hour,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         context.LeaveBalances.AddRange(
-            employee1AnnualBalance,
-            employee1SickBalance,
+            employee1DailyBalance,
             employee1HourlyBalance,
-            employee2AnnualBalance,
-            employee2SickBalance
+            employee2DailyBalance,
+            employee2HourlyBalance
         );
 
         // Create Sample Leave Requests
@@ -265,7 +188,7 @@ public static class SeedData
         {
             Id = Guid.NewGuid(),
             UserId = employee1.Id,
-            LeaveTypeId = annualLeaveType.Id,
+            LeaveTypeId = dailyLeaveType.Id,
             StartDateTime = DateTime.UtcNow.AddDays(5),
             EndDateTime = DateTime.UtcNow.AddDays(7),
             DurationAmount = 3,
@@ -280,11 +203,11 @@ public static class SeedData
         {
             Id = Guid.NewGuid(),
             UserId = employee2.Id,
-            LeaveTypeId = sickLeaveType.Id,
+            LeaveTypeId = hourlyLeaveType.Id,
             StartDateTime = DateTime.UtcNow.AddDays(-5),
             EndDateTime = DateTime.UtcNow.AddDays(-5),
-            DurationAmount = 1,
-            DurationUnit = LeaveUnit.Day,
+            DurationAmount = 4,
+            DurationUnit = LeaveUnit.Hour,
             Reason = "Medical appointment",
             Status = LeaveRequestStatus.Approved,
             AdminComment = "Approved",
@@ -308,6 +231,107 @@ public static class SeedData
 
         // Save all changes
         await context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Seeds leave types (always ensures they exist).
+    /// </summary>
+    public static async Task SeedLeaveTypesAsync(ApplicationDbContext context)
+    {
+        try
+        {
+            // Ensure database is created and migrations are applied
+            await context.Database.EnsureCreatedAsync();
+            
+            var dailyLeaveType = await GetOrCreateLeaveTypeAsync(context, "Daily", LeaveUnit.Day, "Daily leave measured in days");
+            var hourlyLeaveType = await GetOrCreateLeaveTypeAsync(context, "Hourly", LeaveUnit.Hour, "Hourly leave measured in hours");
+            
+            // Create policies if they don't exist
+            try
+            {
+                var existingDailyPolicy = await context.LeavePolicies.FirstOrDefaultAsync(lp => lp.LeaveTypeId == dailyLeaveType.Id);
+                var existingHourlyPolicy = await context.LeavePolicies.FirstOrDefaultAsync(lp => lp.LeaveTypeId == hourlyLeaveType.Id);
+
+                if (existingDailyPolicy == null)
+                {
+                    context.LeavePolicies.Add(new LeavePolicy
+                    {
+                        Id = Guid.NewGuid(),
+                        LeaveTypeId = dailyLeaveType.Id,
+                        EntitlementAmount = 20,
+                        EntitlementUnit = LeaveUnit.Day,
+                        RenewalPeriod = RenewalPeriod.Yearly,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
+
+                if (existingHourlyPolicy == null)
+                {
+                    context.LeavePolicies.Add(new LeavePolicy
+                    {
+                        Id = Guid.NewGuid(),
+                        LeaveTypeId = hourlyLeaveType.Id,
+                        EntitlementAmount = 40,
+                        EntitlementUnit = LeaveUnit.Hour,
+                        RenewalPeriod = RenewalPeriod.Monthly,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
+
+                await context.SaveChangesAsync();
+            }
+            catch (Exception policyEx)
+            {
+                // Policies might fail if table doesn't exist, but leave types should still be created
+                Console.WriteLine($"Warning: Could not create leave policies: {policyEx.Message}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in SeedLeaveTypesAsync: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Gets an existing leave type or creates a new one.
+    /// </summary>
+    private static async Task<LeaveType> GetOrCreateLeaveTypeAsync(ApplicationDbContext context, string name, LeaveUnit unit, string description)
+    {
+        try
+        {
+            var existingLeaveType = await context.LeaveTypes.FirstOrDefaultAsync(lt => lt.Name == name);
+            
+            if (existingLeaveType != null)
+            {
+                return existingLeaveType;
+            }
+
+            var newLeaveType = new LeaveType
+            {
+                Id = Guid.NewGuid(),
+                Name = name,
+                Unit = unit,
+                Description = description,
+                IsSickLeave = false,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            context.LeaveTypes.Add(newLeaveType);
+            await context.SaveChangesAsync();
+            
+            return newLeaveType;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in GetOrCreateLeaveTypeAsync for {name}: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            throw;
+        }
     }
 
     /// <summary>

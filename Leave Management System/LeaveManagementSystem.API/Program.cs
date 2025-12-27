@@ -1,6 +1,7 @@
 using LeaveManagementSystem.Application;
 using LeaveManagementSystem.Infrastructure;
 using LeaveManagementSystem.Infrastructure.Data;
+using LeaveManagementSystem.API.Converters;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,7 +14,18 @@ builder.Logging.SetMinimumLevel(LogLevel.Information);
 
 // Add services to the container
 // Following Dependency Inversion Principle - register dependencies through DI container
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Convert property names to camelCase for JavaScript compatibility
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        // Allow flexible date parsing and enum conversion
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        // Add custom DateTime converter for ISO 8601 format
+        options.JsonSerializerOptions.Converters.Add(new DateTimeJsonConverter());
+        // Allow case-insensitive property matching
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -24,6 +36,17 @@ builder.Services.AddSwaggerGen(c =>
         Title = "Leave Management System API",
         Version = "v1",
         Description = "API for managing employee leave requests, balances, and company subscriptions"
+    });
+    
+    // Use camelCase for Swagger schema to match JSON serialization
+    c.CustomSchemaIds(type => type.Name);
+    
+    // Map enum values as strings in Swagger
+    c.MapType<DateTime>(() => new Microsoft.OpenApi.Models.OpenApiSchema
+    {
+        Type = "string",
+        Format = "date-time",
+        Example = new Microsoft.OpenApi.Any.OpenApiString("2025-12-25T23:00:00.000Z")
     });
 });
 

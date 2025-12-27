@@ -25,15 +25,48 @@ public class LeaveRequestsController : ControllerBase
     }
 
     /// <summary>
+    /// Gets all leave requests for the current user (from query parameter).
+    /// This endpoint is for regular users to get their own requests.
+    /// </summary>
+    /// <param name="userId">User ID (optional, can be passed as query parameter)</param>
+    /// <returns>Collection of leave request DTOs</returns>
+    [HttpGet("my-requests")]
+    public async Task<ActionResult<IEnumerable<LeaveRequestDto>>> GetMyLeaveRequests([FromQuery] Guid? userId)
+    {
+        try
+        {
+            if (!userId.HasValue)
+            {
+                return BadRequest(new { error = "User ID is required", statusCode = 400 });
+            }
+
+            var leaveRequests = await _leaveRequestService.GetLeaveRequestsByUserIdAsync(userId.Value);
+            return Ok(leaveRequests);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "An error occurred while retrieving leave requests", message = ex.Message, statusCode = 500 });
+        }
+    }
+
+    /// <summary>
     /// Gets all leave requests for a user.
+    /// This endpoint works for both admins and regular users.
     /// </summary>
     /// <param name="userId">User ID</param>
     /// <returns>Collection of leave request DTOs</returns>
     [HttpGet("user/{userId}")]
     public async Task<ActionResult<IEnumerable<LeaveRequestDto>>> GetLeaveRequestsByUserId(Guid userId)
     {
-        var leaveRequests = await _leaveRequestService.GetLeaveRequestsByUserIdAsync(userId);
-        return Ok(leaveRequests);
+        try
+        {
+            var leaveRequests = await _leaveRequestService.GetLeaveRequestsByUserIdAsync(userId);
+            return Ok(leaveRequests);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "An error occurred while retrieving leave requests", message = ex.Message, statusCode = 500 });
+        }
     }
 
     /// <summary>
@@ -46,7 +79,7 @@ public class LeaveRequestsController : ControllerBase
     {
         var leaveRequest = await _leaveRequestService.GetLeaveRequestByIdAsync(id);
         if (leaveRequest == null)
-            return NotFound($"Leave request with ID {id} not found");
+            return NotFound(new { error = $"Leave request with ID {id} not found", statusCode = 404 });
 
         return Ok(leaveRequest);
     }
@@ -58,24 +91,34 @@ public class LeaveRequestsController : ControllerBase
     /// <param name="createLeaveRequestDto">Leave request creation data</param>
     /// <returns>Created leave request DTO</returns>
     [HttpPost("user/{userId}")]
-    public async Task<ActionResult<LeaveRequestDto>> CreateLeaveRequest(Guid userId, [FromBody] CreateLeaveRequestDto createLeaveRequestDto)
+    [Consumes("application/json")]
+    [Produces("application/json")]
+    public async Task<ActionResult<LeaveRequestDto>> CreateLeaveRequest(
+        [FromRoute] Guid userId, 
+        [FromBody] CreateLeaveRequestDto createLeaveRequestDto)
     {
         try
         {
             var leaveRequest = await _leaveRequestService.CreateLeaveRequestAsync(userId, createLeaveRequestDto);
-            return CreatedAtAction(nameof(GetLeaveRequestById), new { id = leaveRequest.Id }, leaveRequest);
+            // Return 201 Created with the leave request in the response body
+            return StatusCode(201, leaveRequest);
         }
         catch (KeyNotFoundException ex)
         {
-            return NotFound(ex.Message);
+            return NotFound(new { error = ex.Message, statusCode = 404 });
         }
         catch (ArgumentException ex)
         {
-            return BadRequest(ex.Message);
+            return BadRequest(new { error = ex.Message, statusCode = 400 });
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ex.Message);
+            return BadRequest(new { error = ex.Message, statusCode = 400 });
+        }
+        catch (Exception ex)
+        {
+            // Catch-all for any unexpected exceptions
+            return StatusCode(500, new { error = "An unexpected error occurred", message = ex.Message, statusCode = 500 });
         }
     }
 
@@ -95,11 +138,11 @@ public class LeaveRequestsController : ControllerBase
         }
         catch (KeyNotFoundException ex)
         {
-            return NotFound(ex.Message);
+            return NotFound(new { error = ex.Message, statusCode = 404 });
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ex.Message);
+            return BadRequest(new { error = ex.Message, statusCode = 400 });
         }
     }
 
@@ -119,11 +162,11 @@ public class LeaveRequestsController : ControllerBase
         }
         catch (KeyNotFoundException ex)
         {
-            return NotFound(ex.Message);
+            return NotFound(new { error = ex.Message, statusCode = 404 });
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ex.Message);
+            return BadRequest(new { error = ex.Message, statusCode = 400 });
         }
     }
 }

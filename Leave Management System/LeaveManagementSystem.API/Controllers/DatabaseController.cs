@@ -199,6 +199,43 @@ public class DatabaseController : ControllerBase
     }
 
     /// <summary>
+    /// Gets all leave types from the database.
+    /// </summary>
+    /// <returns>Collection of leave types</returns>
+    [HttpGet("leave-types")]
+    public async Task<IActionResult> GetLeaveTypes()
+    {
+        try
+        {
+            if (!await _context.Database.CanConnectAsync())
+            {
+                return StatusCode(503, new { error = "Database not available", message = "PostgreSQL is not running or not installed." });
+            }
+
+            var leaveTypes = await _context.LeaveTypes
+                .Select(lt => new
+                {
+                    lt.Id,
+                    lt.Name,
+                    lt.Unit,
+                    lt.Description,
+                    lt.IsSickLeave
+                })
+                .ToListAsync();
+
+            return Ok(leaveTypes);
+        }
+        catch (NpgsqlException ex) when (ex.InnerException is System.Net.Sockets.SocketException)
+        {
+            return StatusCode(503, new { error = "Database connection refused", message = "PostgreSQL is not running." });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Database error", message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Gets database connection status.
     /// </summary>
     /// <returns>Connection status</returns>

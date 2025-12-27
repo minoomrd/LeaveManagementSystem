@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from 'axios'
-import { User, Role, LeaveRequest, LeaveBalance, CreateUserDto, CreateLeaveRequestDto, LoginDto } from '../types/models'
+import { User, Role, LeaveRequest, LeaveBalance, LeaveType, CreateUserDto, CreateLeaveRequestDto, LoginDto } from '../types/models'
 
 /**
  * API Service Base Class
@@ -43,7 +43,33 @@ class ApiService {
           localStorage.removeItem('authToken')
           window.location.href = '/login'
         }
-        return Promise.reject(error)
+        
+        // Extract error message from response
+        if (error.response?.data) {
+          const errorData = error.response.data as any
+          let errorMessage = 'An error occurred'
+          
+          // Handle different error response formats
+          if (typeof errorData === 'string') {
+            errorMessage = errorData
+          } else if (errorData?.error) {
+            errorMessage = errorData.error
+          } else if (errorData?.message) {
+            errorMessage = errorData.message
+          } else if (typeof errorData === 'object') {
+            errorMessage = JSON.stringify(errorData)
+          }
+          
+          const enhancedError = new Error(errorMessage)
+          ;(enhancedError as any).status = error.response.status
+          ;(enhancedError as any).response = error.response
+          return Promise.reject(enhancedError)
+        }
+        
+        // Handle network errors or other issues
+        const networkError = new Error(error.message || 'Network error occurred')
+        ;(networkError as any).status = error.response?.status || 0
+        return Promise.reject(networkError)
       }
     )
   }
@@ -154,6 +180,16 @@ export class UserService extends ApiService {
   async createUser(userData: CreateUserDto): Promise<User> {
     return this.post<User>('/users', userData)
   }
+
+  /**
+   * Update a user
+   * @param id - User ID
+   * @param userData - User update data
+   * @returns Updated user
+   */
+  async updateUser(id: string, userData: CreateUserDto): Promise<User> {
+    return this.put<User>(`/users/${id}`, userData)
+  }
 }
 
 /**
@@ -193,21 +229,31 @@ export class LeaveRequestService extends ApiService {
   }
 
   /**
+   * Get leave requests by user ID
+   * @param userId - User ID
+   * @returns Array of leave requests for the user
+   */
+  async getLeaveRequestsByUserId(userId: string): Promise<LeaveRequest[]> {
+    return this.get<LeaveRequest[]>(`/LeaveRequests/user/${userId}`)
+  }
+
+  /**
    * Get leave request by ID
    * @param id - Leave request ID
    * @returns Leave request data
    */
   async getLeaveRequestById(id: string): Promise<LeaveRequest> {
-    return this.get<LeaveRequest>(`/leave-requests/${id}`)
+    return this.get<LeaveRequest>(`/LeaveRequests/${id}`)
   }
 
   /**
    * Create a new leave request
+   * @param userId - User ID submitting the request
    * @param leaveRequestData - Leave request creation data
    * @returns Created leave request
    */
-  async createLeaveRequest(leaveRequestData: CreateLeaveRequestDto): Promise<LeaveRequest> {
-    return this.post<LeaveRequest>('/leave-requests', leaveRequestData)
+  async createLeaveRequest(userId: string, leaveRequestData: CreateLeaveRequestDto): Promise<LeaveRequest> {
+    return this.post<LeaveRequest>(`/LeaveRequests/user/${userId}`, leaveRequestData)
   }
 
   /**
@@ -217,7 +263,7 @@ export class LeaveRequestService extends ApiService {
    * @returns Updated leave request
    */
   async approveLeaveRequest(id: string, comment?: string): Promise<LeaveRequest> {
-    return this.post<LeaveRequest>(`/leave-requests/${id}/approve`, { comment })
+    return this.post<LeaveRequest>(`/LeaveRequests/${id}/approve`, { comment })
   }
 
   /**
@@ -227,7 +273,7 @@ export class LeaveRequestService extends ApiService {
    * @returns Updated leave request
    */
   async rejectLeaveRequest(id: string, comment: string): Promise<LeaveRequest> {
-    return this.post<LeaveRequest>(`/leave-requests/${id}/reject`, { comment })
+    return this.post<LeaveRequest>(`/LeaveRequests/${id}/reject`, { comment })
   }
 }
 
@@ -255,10 +301,25 @@ export class LeaveBalanceService extends ApiService {
   }
 }
 
+/**
+ * Leave Type Service
+ * Following Single Responsibility Principle - handles only leave type operations
+ */
+export class LeaveTypeService extends ApiService {
+  /**
+   * Get all leave types
+   * @returns Array of leave types
+   */
+  async getAllLeaveTypes(): Promise<LeaveType[]> {
+    return this.get<LeaveType[]>('/database/leave-types')
+  }
+}
+
 // Export singleton instances
 export const authService = new AuthService()
 export const userService = new UserService()
 export const roleService = new RoleService()
 export const leaveRequestService = new LeaveRequestService()
 export const leaveBalanceService = new LeaveBalanceService()
+export const leaveTypeService = new LeaveTypeService()
 

@@ -121,7 +121,7 @@ export interface CreateUserDto {
 }
 
 export interface CreateLeaveRequestDto {
-  leaveTypeId: string
+  leaveTypeUnit: number // 1 = Hour, 2 = Day
   startDateTime: string
   endDateTime: string
   reason?: string

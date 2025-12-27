@@ -56,6 +56,50 @@ public class LeaveBalanceService : ILeaveBalanceService
     }
 
     /// <summary>
+    /// Gets or creates a leave balance for a user and leave type.
+    /// If the balance doesn't exist, it will be created with the default entitlement.
+    /// </summary>
+    public async Task<LeaveBalanceDto> GetOrCreateLeaveBalanceAsync(Guid userId, Guid leaveTypeId, LeaveUnit defaultUnit)
+    {
+        var leaveBalances = await _leaveBalanceRepository.FindAsync(lb =>
+            lb.UserId == userId && lb.LeaveTypeId == leaveTypeId);
+
+        var leaveBalance = leaveBalances.FirstOrDefault();
+
+        if (leaveBalance == null)
+        {
+            // Create new balance if it doesn't exist
+            // First, get the entitlement amount
+            decimal entitlement;
+            try
+            {
+                entitlement = await GetEntitlementAmountAsync(userId, leaveTypeId);
+            }
+            catch (InvalidOperationException)
+            {
+                // If no policy exists, use a default value based on unit
+                // This ensures the system can still function even without policies
+                entitlement = defaultUnit == LeaveUnit.Day ? 20 : 40; // Default: 20 days or 40 hours
+            }
+
+            leaveBalance = new LeaveBalance
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                LeaveTypeId = leaveTypeId,
+                BalanceAmount = entitlement,
+                BalanceUnit = defaultUnit,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            leaveBalance = await _leaveBalanceRepository.AddAsync(leaveBalance);
+        }
+
+        return await MapToDtoAsync(leaveBalance);
+    }
+
+    /// <summary>
     /// Updates leave balance after a leave request is approved.
     /// Deducts the duration from the current balance.
     /// </summary>

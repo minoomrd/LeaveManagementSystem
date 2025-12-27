@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using LeaveManagementSystem.Domain.Enums;
 
 namespace LeaveManagementSystem.Application.DTOs;
@@ -9,18 +10,21 @@ namespace LeaveManagementSystem.Application.DTOs;
 public class CreateLeaveRequestDto
 {
     /// <summary>
-    /// Leave type ID
+    /// Leave type unit (1 = Hour, 2 = Day). Will be used to find the leave type.
     /// </summary>
-    public Guid LeaveTypeId { get; set; }
+    [Required]
+    public LeaveUnit LeaveTypeUnit { get; set; }
 
     /// <summary>
-    /// Start date and time of the leave
+    /// Start date and time of the leave (ISO 8601 format: yyyy-MM-ddTHH:mm:ss.fffZ)
     /// </summary>
+    [Required]
     public DateTime StartDateTime { get; set; }
 
     /// <summary>
-    /// End date and time of the leave
+    /// End date and time of the leave (ISO 8601 format: yyyy-MM-ddTHH:mm:ss.fffZ)
     /// </summary>
+    [Required]
     public DateTime EndDateTime { get; set; }
 
     /// <summary>

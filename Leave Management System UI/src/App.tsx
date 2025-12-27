@@ -4,9 +4,11 @@ import Layout from './components/Layout/Layout'
 import LoginPage from './pages/LoginPage/LoginPage'
 import DashboardPage from './pages/DashboardPage/DashboardPage'
 import LeaveRequestsPage from './pages/LeaveRequestsPage/LeaveRequestsPage'
+import UserLeaveRequestsPage from './pages/UserLeaveRequestsPage/UserLeaveRequestsPage'
 import LeaveBalancesPage from './pages/LeaveBalancesPage/LeaveBalancesPage'
 import UsersPage from './pages/UsersPage/UsersPage'
 import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute'
+import AdminRoute from './components/AdminRoute/AdminRoute'
 import { AuthProvider } from './contexts/AuthContext'
 
 /**
@@ -33,9 +35,24 @@ function App() {
           >
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="leave-requests" element={<LeaveRequestsPage />} />
+            <Route
+              path="leave-requests"
+              element={
+                <AdminRoute>
+                  <LeaveRequestsPage />
+                </AdminRoute>
+              }
+            />
+            <Route path="user-leave-requests" element={<UserLeaveRequestsPage />} />
             <Route path="leave-balances" element={<LeaveBalancesPage />} />
-            <Route path="users" element={<UsersPage />} />
+            <Route
+              path="users"
+              element={
+                <AdminRoute>
+                  <UsersPage />
+                </AdminRoute>
+              }
+            />
           </Route>
           
           {/* Catch all - redirect to dashboard */}

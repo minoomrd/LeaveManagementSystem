@@ -8,6 +8,7 @@ import {
 } from '@mui/icons-material'
 import { LeaveRequest, LeaveRequestStatus } from '../../types/models'
 import { leaveRequestService, userService } from '../../services/ApiService'
+import { useAuth } from '../../contexts/AuthContext'
 
 /**
  * Stat Card Props
@@ -47,6 +48,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color }) => (
  * Following Dependency Inversion Principle - depends on service abstractions
  */
 const DashboardPage: React.FC = () => {
+  const { user } = useAuth()
   const [stats, setStats] = useState({
     totalUsers: 0,
     pendingRequests: 0,
@@ -58,15 +60,29 @@ const DashboardPage: React.FC = () => {
   /**
    * Load dashboard statistics
    * Following Single Responsibility Principle - loads only statistics
+   * Shows only logged-in user's data for non-admin users
    */
   useEffect(() => {
     const loadStats = async () => {
+      if (!user?.id) return
+
       try {
         setIsLoading(true)
-        const [users, leaveRequests] = await Promise.all([
-          userService.getAllUsers(),
-          leaveRequestService.getAllLeaveRequests(),
-        ])
+        let users: any[] = []
+        let leaveRequests: LeaveRequest[] = []
+
+        // If user is Admin or SuperAdmin, show all data
+        // Otherwise, show only the logged-in user's data
+        if (user.roleName === 'Admin' || user.roleName === 'SuperAdmin') {
+          [users, leaveRequests] = await Promise.all([
+            userService.getAllUsers(),
+            leaveRequestService.getAllLeaveRequests(),
+          ])
+        } else {
+          // For employees, only show their own data
+          leaveRequests = await leaveRequestService.getLeaveRequestsByUserId(user.id)
+          users = [] // Employees don't see user count
+        }
 
         // Calculate statistics
         const pendingRequests = leaveRequests.filter(
@@ -93,7 +109,7 @@ const DashboardPage: React.FC = () => {
     }
 
     loadStats()
-  }, [])
+  }, [user?.id])
 
   if (isLoading) {
     return (
@@ -113,14 +129,16 @@ const DashboardPage: React.FC = () => {
       </Typography>
 
       <Grid container spacing={3}>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Total Users"
-            value={stats.totalUsers}
-            icon={<PeopleIcon />}
-            color="#1976d2"
-          />
-        </Grid>
+        {(user?.roleName === 'Admin' || user?.roleName === 'SuperAdmin') && (
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Total Users"
+              value={stats.totalUsers}
+              icon={<PeopleIcon />}
+              color="#1976d2"
+            />
+          </Grid>
+        )}
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Pending Requests"

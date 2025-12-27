@@ -12,7 +12,7 @@ namespace LeaveManagementSystem.Application.Services;
 /// </summary>
 public class LeaveRequestService : ILeaveRequestService
 {
-    private readonly IRepository<LeaveRequest> _leaveRequestRepository;
+    private readonly ILeaveRequestRepository _leaveRequestRepository;
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<LeaveType> _leaveTypeRepository;
     private readonly ILeaveBalanceService _leaveBalanceService;
@@ -22,7 +22,7 @@ public class LeaveRequestService : ILeaveRequestService
     /// Following Dependency Inversion Principle - depends on abstractions.
     /// </summary>
     public LeaveRequestService(
-        IRepository<LeaveRequest> leaveRequestRepository,
+        ILeaveRequestRepository leaveRequestRepository,
         IRepository<User> userRepository,
         IRepository<LeaveType> leaveTypeRepository,
         ILeaveBalanceService leaveBalanceService)
@@ -43,17 +43,28 @@ public class LeaveRequestService : ILeaveRequestService
         if (user == null)
             throw new KeyNotFoundException($"User with ID {userId} not found");
 
-        // Validate leave type exists
-        var leaveType = await _leaveTypeRepository.GetByIdAsync(createLeaveRequestDto.LeaveTypeId);
+        // Find leave type by unit (1 = Hour, 2 = Day)
+        var leaveTypes = await _leaveTypeRepository.FindAsync(lt => lt.Unit == createLeaveRequestDto.LeaveTypeUnit);
+        var leaveType = leaveTypes.FirstOrDefault();
         if (leaveType == null)
-            throw new KeyNotFoundException($"Leave type with ID {createLeaveRequestDto.LeaveTypeId} not found");
+        {
+            // If leave type doesn't exist, create it
+            leaveType = new LeaveType
+            {
+                Id = Guid.NewGuid(),
+                Name = createLeaveRequestDto.LeaveTypeUnit == LeaveUnit.Day ? "Daily" : "Hourly",
+                Unit = createLeaveRequestDto.LeaveTypeUnit,
+                Description = createLeaveRequestDto.LeaveTypeUnit == LeaveUnit.Day ? "Daily leave measured in days" : "Hourly leave measured in hours",
+                IsSickLeave = false,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            leaveType = await _leaveTypeRepository.AddAsync(leaveType);
+        }
 
         // Validate dates
         if (createLeaveRequestDto.StartDateTime >= createLeaveRequestDto.EndDateTime)
             throw new ArgumentException("Start date must be before end date");
-
-        if (createLeaveRequestDto.StartDateTime < DateTime.UtcNow.Date)
-            throw new ArgumentException("Cannot request leave for past dates");
 
         // Check for overlapping leave requests
         var overlappingRequests = await _leaveRequestRepository.FindAsync(lr =>
@@ -71,16 +82,18 @@ public class LeaveRequestService : ILeaveRequestService
             createLeaveRequestDto.EndDateTime,
             leaveType.Unit);
 
-        // Check leave balance
-        var balance = await _leaveBalanceService.GetLeaveBalanceAsync(userId, createLeaveRequestDto.LeaveTypeId);
-        if (balance == null || balance.BalanceAmount < duration)
-            throw new InvalidOperationException("Insufficient leave balance");
+        // Get or create leave balance (creates with default entitlement if doesn't exist)
+        var balance = await _leaveBalanceService.GetOrCreateLeaveBalanceAsync(userId, leaveType.Id, leaveType.Unit);
+        
+        // Check if balance is sufficient
+        if (balance.BalanceAmount < duration)
+            throw new InvalidOperationException($"Insufficient leave balance. Available: {balance.BalanceAmount} {balance.BalanceUnit}, Required: {duration} {leaveType.Unit}");
 
         // Create leave request
         var leaveRequest = new LeaveRequest
         {
             UserId = userId,
-            LeaveTypeId = createLeaveRequestDto.LeaveTypeId,
+            LeaveTypeId = leaveType.Id,
             StartDateTime = createLeaveRequestDto.StartDateTime,
             EndDateTime = createLeaveRequestDto.EndDateTime,
             DurationAmount = duration,
@@ -105,12 +118,13 @@ public class LeaveRequestService : ILeaveRequestService
 
     /// <summary>
     /// Gets all leave requests for a user.
+    /// Uses specialized repository method with JOINs to avoid DbContext concurrency issues.
     /// </summary>
     public async Task<IEnumerable<LeaveRequestDto>> GetLeaveRequestsByUserIdAsync(Guid userId)
     {
-        var leaveRequests = await _leaveRequestRepository.FindAsync(lr => lr.UserId == userId);
-        var tasks = leaveRequests.Select(MapToDtoAsync);
-        return await Task.WhenAll(tasks);
+        // Use specialized repository method that does JOINs in a single query
+        // This completely avoids DbContext concurrency issues
+        return await _leaveRequestRepository.GetLeaveRequestsByUserIdWithDetailsAsync(userId);
     }
 
     /// <summary>
