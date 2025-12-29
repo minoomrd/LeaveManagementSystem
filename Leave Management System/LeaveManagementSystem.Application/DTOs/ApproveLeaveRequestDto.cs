@@ -1,8 +1,8 @@
 namespace LeaveManagementSystem.Application.DTOs;
 
 /// <summary>
-/// Data Transfer Object for approving/rejecting a leave request.
-/// Following Single Responsibility Principle - represents only approval action data.
+/// Data Transfer Object for approving/rejecting a leave request (for backward compatibility).
+/// Following Single Responsibility Principle - represents only approval/rejection action data.
 /// </summary>
 public class ApproveLeaveRequestDto
 {
@@ -11,4 +11,3 @@ public class ApproveLeaveRequestDto
     /// </summary>
     public string? AdminComment { get; set; }
 }
-

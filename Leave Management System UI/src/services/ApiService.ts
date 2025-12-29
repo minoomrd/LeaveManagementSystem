@@ -213,6 +213,33 @@ export class RoleService extends ApiService {
   async getRoleById(id: string): Promise<Role> {
     return this.get<Role>(`/roles/${id}`)
   }
+
+  /**
+   * Create a new role
+   * @param roleData - Role creation data
+   * @returns Created role
+   */
+  async createRole(roleData: { name: string; description?: string; isActive?: boolean }): Promise<Role> {
+    return this.post<Role>('/roles', roleData)
+  }
+
+  /**
+   * Update a role
+   * @param id - Role ID
+   * @param roleData - Role update data
+   * @returns Updated role
+   */
+  async updateRole(id: string, roleData: { name: string; description?: string; isActive?: boolean }): Promise<Role> {
+    return this.put<Role>(`/roles/${id}`, roleData)
+  }
+
+  /**
+   * Delete a role
+   * @param id - Role ID
+   */
+  async deleteRole(id: string): Promise<void> {
+    return this.delete<void>(`/roles/${id}`)
+  }
 }
 
 /**
@@ -263,7 +290,14 @@ export class LeaveRequestService extends ApiService {
    * @returns Updated leave request
    */
   async approveLeaveRequest(id: string, comment?: string): Promise<LeaveRequest> {
-    return this.post<LeaveRequest>(`/LeaveRequests/${id}/approve`, { comment })
+    // Send empty string instead of null if no comment provided
+    const payload = { 
+      adminComment: comment && comment.trim() ? comment.trim() : '' 
+    }
+    console.log(`API: Approving request ${id} with payload:`, payload)
+    const result = await this.post<LeaveRequest>(`/LeaveRequests/${id}/approve`, payload)
+    console.log(`API: Approve result:`, result)
+    return result
   }
 
   /**
@@ -273,7 +307,27 @@ export class LeaveRequestService extends ApiService {
    * @returns Updated leave request
    */
   async rejectLeaveRequest(id: string, comment: string): Promise<LeaveRequest> {
-    return this.post<LeaveRequest>(`/LeaveRequests/${id}/reject`, { comment })
+    const payload = { adminComment: comment.trim() }
+    console.log(`API: Rejecting request ${id} with payload:`, payload)
+    return this.post<LeaveRequest>(`/LeaveRequests/${id}/reject`, payload)
+  }
+
+  /**
+   * Review a leave request (approve or reject)
+   * @param id - Leave request ID
+   * @param status - Status: "accept" or "reject"
+   * @param adminComment - Optional admin comment
+   * @returns Updated leave request
+   */
+  async reviewLeaveRequest(id: string, status: 'accept' | 'reject', adminComment?: string): Promise<LeaveRequest> {
+    const payload = {
+      Status: status,
+      AdminComment: adminComment && adminComment.trim() ? adminComment.trim() : undefined
+    }
+    console.log(`API: Reviewing request ${id} with payload:`, payload)
+    const result = await this.post<LeaveRequest>(`/LeaveRequests/${id}/review`, payload)
+    console.log(`API: Review result:`, result)
+    return result
   }
 }
 
@@ -296,8 +350,7 @@ export class LeaveBalanceService extends ApiService {
    * @returns Array of leave balances for the user
    */
   async getLeaveBalancesByUserId(userId: string): Promise<LeaveBalance[]> {
-    const allBalances = await this.getAllLeaveBalances()
-    return allBalances.filter((balance) => balance.userId === userId)
+    return this.get<LeaveBalance[]>(`/LeaveBalances/user/${userId}`)
   }
 }
 
@@ -315,6 +368,61 @@ export class LeaveTypeService extends ApiService {
   }
 }
 
+/**
+ * Leave Policy Interface
+ */
+export interface LeavePolicy {
+  id: string
+  leaveTypeId: string
+  leaveTypeName: string
+  isSickLeave: boolean
+  entitlementAmount: number
+  entitlementUnit: number // 1 = Hour, 2 = Day
+  renewalPeriod: string // 'Weekly' | 'Monthly' | 'Yearly'
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * Leave Policy Service
+ * Following Single Responsibility Principle - handles only leave policy operations
+ */
+export class LeavePolicyService extends ApiService {
+  /**
+   * Get all leave policies
+   * @returns Array of leave policies
+   */
+  async getAllLeavePolicies(): Promise<LeavePolicy[]> {
+    return this.get<LeavePolicy[]>('/LeavePolicies')
+  }
+
+  /**
+   * Get leave policies by leave type ID
+   * @param leaveTypeId - Leave type ID
+   * @returns Array of leave policies
+   */
+  async getLeavePoliciesByLeaveTypeId(leaveTypeId: string): Promise<LeavePolicy[]> {
+    return this.get<LeavePolicy[]>(`/LeavePolicies/leave-type/${leaveTypeId}`)
+  }
+
+  /**
+   * Create or update a leave policy for a leave type
+   * @param leaveTypeId - Leave type ID
+   * @param policyData - Leave policy data
+   * @returns Created or updated leave policy
+   */
+  async createOrUpdateLeavePolicy(
+    leaveTypeId: string,
+    policyData: {
+      entitlementAmount: number
+      entitlementUnit: number // 1 = Hour, 2 = Day
+      renewalPeriod: string // 'Weekly' | 'Monthly' | 'Yearly'
+    }
+  ): Promise<LeavePolicy> {
+    return this.post<LeavePolicy>(`/LeavePolicies/leave-type/${leaveTypeId}`, policyData)
+  }
+}
+
 // Export singleton instances
 export const authService = new AuthService()
 export const userService = new UserService()
@@ -322,4 +430,5 @@ export const roleService = new RoleService()
 export const leaveRequestService = new LeaveRequestService()
 export const leaveBalanceService = new LeaveBalanceService()
 export const leaveTypeService = new LeaveTypeService()
+export const leavePolicyService = new LeavePolicyService()
 

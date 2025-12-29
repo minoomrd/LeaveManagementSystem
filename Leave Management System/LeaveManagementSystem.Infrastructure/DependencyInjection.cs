@@ -54,7 +54,9 @@ public static class DependencyInjection
         // Register specialized LeaveRequestRepository (implements both IRepository<LeaveRequest> and ILeaveRequestRepository)
         services.AddScoped<ILeaveRequestRepository, LeaveRequestRepository>();
         services.AddScoped<IRepository<LeaveRequest>>(sp => sp.GetRequiredService<ILeaveRequestRepository>());
-        services.AddScoped<IRepository<LeaveBalance>, Repository<LeaveBalance>>();
+        // Register specialized LeaveBalanceRepository (implements both IRepository<LeaveBalance> and ILeaveBalanceRepository)
+        services.AddScoped<ILeaveBalanceRepository, LeaveBalanceRepository>();
+        services.AddScoped<IRepository<LeaveBalance>>(sp => sp.GetRequiredService<ILeaveBalanceRepository>());
         services.AddScoped<IRepository<WorkingHours>, Repository<WorkingHours>>();
         services.AddScoped<IRepository<CompanyUserLimit>, Repository<CompanyUserLimit>>();
         services.AddScoped<IRepository<PricingTier>, Repository<PricingTier>>();

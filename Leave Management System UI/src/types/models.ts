@@ -43,7 +43,7 @@ export interface LeaveRequest {
   durationAmount: number
   durationUnit: LeaveUnit
   reason?: string
-  status: LeaveRequestStatus
+  status: LeaveRequestStatus | number | string // API may send enum as string, number, or enum
   adminComment?: string
   createdAt: string
 }
@@ -59,6 +59,10 @@ export interface LeaveBalance {
   leaveTypeName: string
   balanceAmount: number
   balanceUnit: LeaveUnit
+  currentYearEntitlement?: number
+  usedThisYear?: number
+  carryoverFromPreviousYears?: number
+  remainingBalance?: number
   updatedAt: string
 }
 

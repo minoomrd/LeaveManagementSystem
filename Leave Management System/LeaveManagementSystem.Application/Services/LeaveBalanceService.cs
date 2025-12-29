@@ -12,7 +12,7 @@ namespace LeaveManagementSystem.Application.Services;
 /// </summary>
 public class LeaveBalanceService : ILeaveBalanceService
 {
-    private readonly IRepository<LeaveBalance> _leaveBalanceRepository;
+    private readonly ILeaveBalanceRepository _leaveBalanceRepository;
     private readonly IRepository<LeaveType> _leaveTypeRepository;
     private readonly IRepository<LeavePolicy> _leavePolicyRepository;
     private readonly IRepository<EmployeeLeaveSetting> _employeeLeaveSettingRepository;
@@ -22,7 +22,7 @@ public class LeaveBalanceService : ILeaveBalanceService
     /// Following Dependency Inversion Principle - depends on abstractions.
     /// </summary>
     public LeaveBalanceService(
-        IRepository<LeaveBalance> leaveBalanceRepository,
+        ILeaveBalanceRepository leaveBalanceRepository,
         IRepository<LeaveType> leaveTypeRepository,
         IRepository<LeavePolicy> leavePolicyRepository,
         IRepository<EmployeeLeaveSetting> employeeLeaveSettingRepository)
@@ -35,12 +35,13 @@ public class LeaveBalanceService : ILeaveBalanceService
 
     /// <summary>
     /// Gets leave balances for a user.
+    /// Uses specialized repository method with JOINs to avoid DbContext concurrency issues.
     /// </summary>
     public async Task<IEnumerable<LeaveBalanceDto>> GetLeaveBalancesByUserIdAsync(Guid userId)
     {
-        var leaveBalances = await _leaveBalanceRepository.FindAsync(lb => lb.UserId == userId);
-        var tasks = leaveBalances.Select(MapToDtoAsync);
-        return await Task.WhenAll(tasks);
+        // Use specialized repository method that does JOINs in a single query
+        // This completely avoids DbContext concurrency issues
+        return await _leaveBalanceRepository.GetLeaveBalancesByUserIdWithDetailsAsync(userId);
     }
 
     /// <summary>
@@ -147,6 +148,61 @@ public class LeaveBalanceService : ILeaveBalanceService
             {
                 // Assuming 8 hours per day
                 leaveBalance.BalanceAmount -= durationAmount * 8;
+            }
+        }
+
+        leaveBalance.UpdatedAt = DateTime.UtcNow;
+        await _leaveBalanceRepository.UpdateAsync(leaveBalance);
+    }
+
+    /// <summary>
+    /// Adds back to leave balance when a leave request is rejected after being approved.
+    /// Adds the duration back to the current balance.
+    /// </summary>
+    public async Task AddToLeaveBalanceAsync(Guid userId, Guid leaveTypeId, decimal durationAmount, LeaveUnit durationUnit)
+    {
+        // Get or create leave balance
+        var leaveBalances = await _leaveBalanceRepository.FindAsync(lb =>
+            lb.UserId == userId && lb.LeaveTypeId == leaveTypeId);
+
+        var leaveBalance = leaveBalances.FirstOrDefault();
+
+        if (leaveBalance == null)
+        {
+            // Create new balance if it doesn't exist
+            // First, get the entitlement amount
+            var entitlement = await GetEntitlementAmountAsync(userId, leaveTypeId);
+
+            leaveBalance = new LeaveBalance
+            {
+                UserId = userId,
+                LeaveTypeId = leaveTypeId,
+                BalanceAmount = entitlement,
+                BalanceUnit = durationUnit
+            };
+
+            leaveBalance = await _leaveBalanceRepository.AddAsync(leaveBalance);
+        }
+
+        // Add the duration back to balance
+        // Note: In a real system, you might want to convert units if they don't match
+        if (leaveBalance.BalanceUnit == durationUnit)
+        {
+            leaveBalance.BalanceAmount += durationAmount;
+        }
+        else
+        {
+            // Convert if units don't match (e.g., hours to days)
+            // This is a simplified conversion - adjust based on business rules
+            if (durationUnit == LeaveUnit.Hour && leaveBalance.BalanceUnit == LeaveUnit.Day)
+            {
+                // Assuming 8 hours per day
+                leaveBalance.BalanceAmount += durationAmount / 8;
+            }
+            else if (durationUnit == LeaveUnit.Day && leaveBalance.BalanceUnit == LeaveUnit.Hour)
+            {
+                // Assuming 8 hours per day
+                leaveBalance.BalanceAmount += durationAmount * 8;
             }
         }
 

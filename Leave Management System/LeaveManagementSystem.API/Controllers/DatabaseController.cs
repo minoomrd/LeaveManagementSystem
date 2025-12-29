@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using LeaveManagementSystem.Infrastructure.Data;
+using LeaveManagementSystem.Domain.Enums;
 using Npgsql;
 
 namespace LeaveManagementSystem.API.Controllers;
@@ -159,9 +160,9 @@ public class DatabaseController : ControllerBase
     }
 
     /// <summary>
-    /// Gets all leave balances from the database.
+    /// Gets all leave balances from the database with detailed year information.
     /// </summary>
-    /// <returns>Collection of leave balances</returns>
+    /// <returns>Collection of leave balances with year breakdown</returns>
     [HttpGet("leave-balances")]
     public async Task<IActionResult> GetLeaveBalances()
     {
@@ -172,21 +173,80 @@ public class DatabaseController : ControllerBase
                 return StatusCode(503, new { error = "Database not available", message = "PostgreSQL is not running or not installed." });
             }
 
+            var currentYear = DateTime.UtcNow.Year;
+            var yearStart = new DateTime(currentYear, 1, 1);
+            var yearEnd = new DateTime(currentYear, 12, 31, 23, 59, 59);
+
+            // Get all leave balances
             var leaveBalances = await _context.LeaveBalances
                 .Include(lb => lb.User)
                 .Include(lb => lb.LeaveType)
-                .Select(lb => new
+                .Include(lb => lb.LeaveType.LeavePolicies)
+                .ToListAsync();
+
+            // Get all approved leave requests for current year
+            var approvedRequestsThisYear = await _context.LeaveRequests
+                .Where(lr => lr.Status == Domain.Enums.LeaveRequestStatus.Approved &&
+                           lr.StartDateTime >= yearStart &&
+                           lr.StartDateTime <= yearEnd)
+                .ToListAsync();
+
+            // Build result with calculations
+            var result = leaveBalances.Select(lb =>
+            {
+                // Get entitlement for current year from policy
+                var policy = lb.LeaveType.LeavePolicies.FirstOrDefault();
+                decimal currentYearEntitlement = 0;
+                if (policy != null)
+                {
+                    currentYearEntitlement = policy.EntitlementAmount;
+                }
+
+                // Calculate used leave this year for this user and leave type
+                var usedThisYear = approvedRequestsThisYear
+                    .Where(lr => lr.UserId == lb.UserId && lr.LeaveTypeId == lb.LeaveTypeId)
+                    .Sum(lr =>
+                    {
+                        // Convert to same unit as balance
+                        if (lr.DurationUnit == lb.BalanceUnit)
+                        {
+                            return lr.DurationAmount;
+                        }
+                        else if (lr.DurationUnit == Domain.Enums.LeaveUnit.Hour && lb.BalanceUnit == Domain.Enums.LeaveUnit.Day)
+                        {
+                            return lr.DurationAmount / 8; // 8 hours per day
+                        }
+                        else if (lr.DurationUnit == Domain.Enums.LeaveUnit.Day && lb.BalanceUnit == Domain.Enums.LeaveUnit.Hour)
+                        {
+                            return lr.DurationAmount * 8; // 8 hours per day
+                        }
+                        return 0;
+                    });
+
+                // Calculate carryover from previous years
+                // Formula: Remaining Balance = (Current Year Entitlement + Carryover) - Used This Year
+                // Therefore: Carryover = Remaining Balance + Used This Year - Current Year Entitlement
+                decimal carryover = lb.BalanceAmount + usedThisYear - currentYearEntitlement;
+                if (carryover < 0) carryover = 0; // No negative carryover
+
+                return new
                 {
                     lb.Id,
+                    lb.UserId,
                     UserName = lb.User.FullName,
+                    lb.LeaveTypeId,
                     LeaveTypeName = lb.LeaveType.Name,
                     lb.BalanceAmount,
                     lb.BalanceUnit,
+                    CurrentYearEntitlement = currentYearEntitlement,
+                    UsedThisYear = usedThisYear,
+                    CarryoverFromPreviousYears = carryover,
+                    RemainingBalance = lb.BalanceAmount,
                     lb.UpdatedAt
-                })
-                .ToListAsync();
+                };
+            }).ToList();
 
-            return Ok(leaveBalances);
+            return Ok(result);
         }
         catch (NpgsqlException ex) when (ex.InnerException is System.Net.Sockets.SocketException)
         {

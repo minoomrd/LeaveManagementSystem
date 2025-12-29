@@ -128,54 +128,81 @@ public class LeaveRequestService : ILeaveRequestService
     }
 
     /// <summary>
-    /// Approves a leave request and updates leave balance.
+    /// Updates the status of a leave request (Approved or Rejected) and updates leave balance if approved.
     /// </summary>
-    public async Task<LeaveRequestDto> ApproveLeaveRequestAsync(Guid leaveRequestId, ApproveLeaveRequestDto approveDto)
+    public async Task<LeaveRequestDto> UpdateLeaveRequestStatusAsync(Guid leaveRequestId, UpdateLeaveRequestStatusDto updateStatusDto)
     {
         var leaveRequest = await _leaveRequestRepository.GetByIdAsync(leaveRequestId);
         if (leaveRequest == null)
             throw new KeyNotFoundException($"Leave request with ID {leaveRequestId} not found");
 
-        if (leaveRequest.Status != LeaveRequestStatus.Pending)
-            throw new InvalidOperationException("Only pending leave requests can be approved");
+        // Validate status is either Approved or Rejected (must be explicitly set, not default 0)
+        if (updateStatusDto.Status != LeaveRequestStatus.Approved && updateStatusDto.Status != LeaveRequestStatus.Rejected)
+            throw new ArgumentException($"Status must be either Approved ({LeaveRequestStatus.Approved}) or Rejected ({LeaveRequestStatus.Rejected}). Received: {updateStatusDto.Status}");
+
+        // Store the previous status to handle leave balance updates
+        var previousStatus = leaveRequest.Status;
+        var isChangingToApproved = updateStatusDto.Status == LeaveRequestStatus.Approved;
+        var isChangingFromApproved = previousStatus == LeaveRequestStatus.Approved;
 
         // Update status
-        leaveRequest.Status = LeaveRequestStatus.Approved;
-        leaveRequest.AdminComment = approveDto.AdminComment;
+        leaveRequest.Status = updateStatusDto.Status;
+        leaveRequest.AdminComment = updateStatusDto.AdminComment;
         leaveRequest.UpdatedAt = DateTime.UtcNow;
 
+        // Save the changes
         await _leaveRequestRepository.UpdateAsync(leaveRequest);
 
-        // Update leave balance
-        await _leaveBalanceService.UpdateLeaveBalanceAsync(
-            leaveRequest.UserId,
-            leaveRequest.LeaveTypeId,
-            leaveRequest.DurationAmount,
-            leaveRequest.DurationUnit);
+        // Handle leave balance updates based on status changes
+        if (isChangingToApproved && !isChangingFromApproved)
+        {
+            // Changing to Approved: deduct from balance
+            await _leaveBalanceService.UpdateLeaveBalanceAsync(
+                leaveRequest.UserId,
+                leaveRequest.LeaveTypeId,
+                leaveRequest.DurationAmount,
+                leaveRequest.DurationUnit);
+        }
+        else if (isChangingFromApproved && !isChangingToApproved)
+        {
+            // Changing from Approved to Rejected: add back to balance
+            // We need to add the amount back by reversing the deduction
+            await _leaveBalanceService.AddToLeaveBalanceAsync(
+                leaveRequest.UserId,
+                leaveRequest.LeaveTypeId,
+                leaveRequest.DurationAmount,
+                leaveRequest.DurationUnit);
+        }
 
+        // Return the updated entity directly (it's already saved and tracked)
+        // The entity has been updated and saved, so we can use it directly
         return await MapToDtoAsync(leaveRequest);
     }
 
     /// <summary>
-    /// Rejects a leave request.
+    /// Approves a leave request (for backward compatibility).
+    /// </summary>
+    public async Task<LeaveRequestDto> ApproveLeaveRequestAsync(Guid leaveRequestId, ApproveLeaveRequestDto approveDto)
+    {
+        var updateStatusDto = new UpdateLeaveRequestStatusDto
+        {
+            Status = LeaveRequestStatus.Approved,
+            AdminComment = approveDto.AdminComment
+        };
+        return await UpdateLeaveRequestStatusAsync(leaveRequestId, updateStatusDto);
+    }
+
+    /// <summary>
+    /// Rejects a leave request (for backward compatibility).
     /// </summary>
     public async Task<LeaveRequestDto> RejectLeaveRequestAsync(Guid leaveRequestId, ApproveLeaveRequestDto approveDto)
     {
-        var leaveRequest = await _leaveRequestRepository.GetByIdAsync(leaveRequestId);
-        if (leaveRequest == null)
-            throw new KeyNotFoundException($"Leave request with ID {leaveRequestId} not found");
-
-        if (leaveRequest.Status != LeaveRequestStatus.Pending)
-            throw new InvalidOperationException("Only pending leave requests can be rejected");
-
-        // Update status
-        leaveRequest.Status = LeaveRequestStatus.Rejected;
-        leaveRequest.AdminComment = approveDto.AdminComment;
-        leaveRequest.UpdatedAt = DateTime.UtcNow;
-
-        await _leaveRequestRepository.UpdateAsync(leaveRequest);
-
-        return await MapToDtoAsync(leaveRequest);
+        var updateStatusDto = new UpdateLeaveRequestStatusDto
+        {
+            Status = LeaveRequestStatus.Rejected,
+            AdminComment = approveDto.AdminComment
+        };
+        return await UpdateLeaveRequestStatusAsync(leaveRequestId, updateStatusDto);
     }
 
     /// <summary>

@@ -8,6 +8,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   Paper,
   Chip,
   CircularProgress,
@@ -41,6 +42,9 @@ const LEAVE_TYPES = [
   { id: '1', name: 'Hourly', unit: 1 }, // 1 = Hour (LeaveUnit.Hour)
 ] as const
 
+type Order = 'asc' | 'desc'
+type OrderBy = 'createdAt' | 'startDateTime' | 'endDateTime' | 'status'
+
 const UserLeaveRequestsPage: React.FC = () => {
   const { user } = useAuth()
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
@@ -55,6 +59,8 @@ const UserLeaveRequestsPage: React.FC = () => {
   const [selectedLeaveTypeId, setSelectedLeaveTypeId] = useState<string>('') // For UI state only
   const [hourlyHours, setHourlyHours] = useState<number>(1)
   const [error, setError] = useState<string>('')
+  const [order, setOrder] = useState<Order>('desc')
+  const [orderBy, setOrderBy] = useState<OrderBy>('createdAt')
 
   /**
    * Load leave requests
@@ -184,14 +190,28 @@ const UserLeaveRequestsPage: React.FC = () => {
   /**
    * Get status chip color
    * Following Single Responsibility Principle - single purpose function
+   * Handles both enum, numeric, and string values from API
    */
-  const getStatusColor = (status: LeaveRequestStatus): 'default' | 'primary' | 'success' | 'error' => {
-    switch (status) {
+  const getStatusColor = (status: LeaveRequestStatus | number | string): 'default' | 'primary' | 'success' | 'error' => {
+    // Handle string enum values from API (e.g., "Approved", "Pending", "Rejected")
+    if (typeof status === 'string') {
+      const statusUpper = status.toUpperCase()
+      if (statusUpper === 'PENDING' || statusUpper === '1') return 'default'
+      if (statusUpper === 'APPROVED' || statusUpper === '2') return 'success'
+      if (statusUpper === 'REJECTED' || statusUpper === '3') return 'error'
+    }
+    
+    // Handle numeric values
+    const statusNum = typeof status === 'number' ? status : Number(status)
+    switch (statusNum) {
       case LeaveRequestStatus.Pending:
+      case 1:
         return 'default'
       case LeaveRequestStatus.Approved:
+      case 2:
         return 'success'
       case LeaveRequestStatus.Rejected:
+      case 3:
         return 'error'
       default:
         return 'default'
@@ -201,17 +221,32 @@ const UserLeaveRequestsPage: React.FC = () => {
   /**
    * Get status label
    * Following Single Responsibility Principle - single purpose function
+   * Handles both enum, numeric, and string values from API
    */
-  const getStatusLabel = (status: LeaveRequestStatus): string => {
-    switch (status) {
+  const getStatusLabel = (status: LeaveRequestStatus | number | string): string => {
+    // Handle string enum values from API (e.g., "Approved", "Pending", "Rejected")
+    if (typeof status === 'string') {
+      const statusUpper = status.toUpperCase()
+      if (statusUpper === 'PENDING' || statusUpper === '1') return 'Pending'
+      if (statusUpper === 'APPROVED' || statusUpper === '2') return 'Approved'
+      if (statusUpper === 'REJECTED' || statusUpper === '3') return 'Rejected'
+    }
+    
+    // Handle numeric values
+    const statusNum = typeof status === 'number' ? status : Number(status)
+    switch (statusNum) {
       case LeaveRequestStatus.Pending:
+      case 1:
         return 'Pending'
       case LeaveRequestStatus.Approved:
+      case 2:
         return 'Approved'
       case LeaveRequestStatus.Rejected:
+      case 3:
         return 'Rejected'
       default:
-        return 'Unknown'
+        // Default to Pending for unknown statuses instead of showing "Unknown"
+        return 'Pending'
     }
   }
 
@@ -228,6 +263,54 @@ const UserLeaveRequestsPage: React.FC = () => {
       minute: '2-digit',
     })
   }
+
+  /**
+   * Handle sort request
+   * Following Single Responsibility Principle - handles only sorting logic
+   */
+  const handleRequestSort = (property: OrderBy) => {
+    const isAsc = orderBy === property && order === 'asc'
+    setOrder(isAsc ? 'desc' : 'asc')
+    setOrderBy(property)
+  }
+
+  /**
+   * Sort leave requests based on order and orderBy
+   * Following Single Responsibility Principle - handles only sorting
+   */
+  const sortedLeaveRequests = [...leaveRequests].sort((a, b) => {
+    let aValue: any
+    let bValue: any
+
+    switch (orderBy) {
+      case 'createdAt':
+        aValue = new Date(a.createdAt).getTime()
+        bValue = new Date(b.createdAt).getTime()
+        break
+      case 'startDateTime':
+        aValue = new Date(a.startDateTime).getTime()
+        bValue = new Date(b.startDateTime).getTime()
+        break
+      case 'endDateTime':
+        aValue = new Date(a.endDateTime).getTime()
+        bValue = new Date(b.endDateTime).getTime()
+        break
+      case 'status':
+        aValue = typeof a.status === 'string' ? a.status : String(a.status)
+        bValue = typeof b.status === 'string' ? b.status : String(b.status)
+        break
+      default:
+        return 0
+    }
+
+    if (aValue < bValue) {
+      return order === 'asc' ? -1 : 1
+    }
+    if (aValue > bValue) {
+      return order === 'asc' ? 1 : -1
+    }
+    return 0
+  })
 
   if (isLoading) {
     return (
@@ -276,23 +359,55 @@ const UserLeaveRequestsPage: React.FC = () => {
           <TableHead>
             <TableRow>
               <TableCell>Leave Type</TableCell>
-              <TableCell>Start Date</TableCell>
-              <TableCell>End Date</TableCell>
+              <TableCell>
+                <TableSortLabel
+                  active={orderBy === 'startDateTime'}
+                  direction={orderBy === 'startDateTime' ? order : 'asc'}
+                  onClick={() => handleRequestSort('startDateTime')}
+                >
+                  Start Date
+                </TableSortLabel>
+              </TableCell>
+              <TableCell>
+                <TableSortLabel
+                  active={orderBy === 'endDateTime'}
+                  direction={orderBy === 'endDateTime' ? order : 'asc'}
+                  onClick={() => handleRequestSort('endDateTime')}
+                >
+                  End Date
+                </TableSortLabel>
+              </TableCell>
               <TableCell>Duration</TableCell>
               <TableCell>Reason</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Created At</TableCell>
+              <TableCell>
+                <TableSortLabel
+                  active={orderBy === 'status'}
+                  direction={orderBy === 'status' ? order : 'asc'}
+                  onClick={() => handleRequestSort('status')}
+                >
+                  Status
+                </TableSortLabel>
+              </TableCell>
+              <TableCell>
+                <TableSortLabel
+                  active={orderBy === 'createdAt'}
+                  direction={orderBy === 'createdAt' ? order : 'asc'}
+                  onClick={() => handleRequestSort('createdAt')}
+                >
+                  Created At
+                </TableSortLabel>
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {leaveRequests.length === 0 ? (
+            {sortedLeaveRequests.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} align="center">
                   <Typography color="text.secondary">No leave requests found</Typography>
                 </TableCell>
               </TableRow>
             ) : (
-              leaveRequests.map((request) => (
+              sortedLeaveRequests.map((request) => (
                 <TableRow key={request.id} hover>
                   <TableCell>{request.leaveTypeName}</TableCell>
                   <TableCell>{formatDate(request.startDateTime)}</TableCell>

@@ -59,6 +59,7 @@ const UsersPage: React.FC = () => {
   /**
    * Load users and roles from API
    * Following Command pattern - encapsulates load operation
+   * Filters out Admin and SuperAdmin users from the list
    */
   const loadData = async () => {
     try {
@@ -67,7 +68,11 @@ const UsersPage: React.FC = () => {
         userService.getAllUsers(),
         roleService.getAllRoles(),
       ])
-      setUsers(usersData)
+      // Filter out Admin and SuperAdmin users
+      const filteredUsers = usersData.filter(
+        (user) => user.roleName !== 'Admin' && user.roleName !== 'SuperAdmin'
+      )
+      setUsers(filteredUsers)
       setRoles(rolesData)
     } catch (error) {
       console.error('Failed to load data:', error)

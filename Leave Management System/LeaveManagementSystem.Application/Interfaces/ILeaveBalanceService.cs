@@ -42,5 +42,14 @@ public interface ILeaveBalanceService
     /// <param name="durationAmount">Duration amount to deduct</param>
     /// <param name="durationUnit">Duration unit</param>
     Task UpdateLeaveBalanceAsync(Guid userId, Guid leaveTypeId, decimal durationAmount, Domain.Enums.LeaveUnit durationUnit);
+
+    /// <summary>
+    /// Adds back to leave balance when a leave request is rejected after being approved
+    /// </summary>
+    /// <param name="userId">User ID</param>
+    /// <param name="leaveTypeId">Leave type ID</param>
+    /// <param name="durationAmount">Duration amount to add back</param>
+    /// <param name="durationUnit">Duration unit</param>
+    Task AddToLeaveBalanceAsync(Guid userId, Guid leaveTypeId, decimal durationAmount, Domain.Enums.LeaveUnit durationUnit);
 }
 

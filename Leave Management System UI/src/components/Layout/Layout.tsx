@@ -20,6 +20,8 @@ import {
   Assignment as AssignmentIcon,
   AccountBalance as AccountBalanceIcon,
   People as PeopleIcon,
+  Security as SecurityIcon,
+  Settings as SettingsIcon,
   Logout as LogoutIcon,
   Menu as MenuIcon,
 } from '@mui/icons-material'
@@ -52,11 +54,18 @@ const getNavItems = (userRole: string | undefined): NavItem[] => {
     baseItems.push({ text: 'My Leave Requests', icon: <AssignmentIcon />, path: '/user-leave-requests' })
   }
 
-  baseItems.push({ text: 'Leave Balances', icon: <AccountBalanceIcon />, path: '/leave-balances' })
+  // Show different leave balances page based on role
+  if (userRole === 'Admin' || userRole === 'SuperAdmin') {
+    baseItems.push({ text: 'Leave Balances', icon: <AccountBalanceIcon />, path: '/leave-balances' })
+  } else {
+    baseItems.push({ text: 'My Leave Balances', icon: <AccountBalanceIcon />, path: '/user-leave-balances' })
+  }
 
-  // Only show Users menu for Admin and SuperAdmin
+  // Only show Users, Roles, and Configuration menu for Admin and SuperAdmin
   if (userRole === 'Admin' || userRole === 'SuperAdmin') {
     baseItems.push({ text: 'Users', icon: <PeopleIcon />, path: '/users' })
+    baseItems.push({ text: 'Roles', icon: <SecurityIcon />, path: '/roles' })
+    baseItems.push({ text: 'Configuration', icon: <SettingsIcon />, path: '/configuration' })
   }
 
   return baseItems

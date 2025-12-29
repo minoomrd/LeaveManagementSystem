@@ -16,3 +16,5 @@ Set-Location ..
 
 Write-Host "`nAPI should be starting. Please wait a few seconds and then test the endpoint." -ForegroundColor Green
 
+
+

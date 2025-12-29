@@ -32,19 +32,11 @@ public interface ILeaveRequestService
     Task<IEnumerable<LeaveRequestDto>> GetLeaveRequestsByUserIdAsync(Guid userId);
 
     /// <summary>
-    /// Approves a leave request
+    /// Updates the status of a leave request (Approved or Rejected)
     /// </summary>
     /// <param name="leaveRequestId">Leave request ID</param>
-    /// <param name="approveDto">Approval data</param>
+    /// <param name="updateStatusDto">Status update data</param>
     /// <returns>Updated leave request DTO</returns>
-    Task<LeaveRequestDto> ApproveLeaveRequestAsync(Guid leaveRequestId, ApproveLeaveRequestDto approveDto);
-
-    /// <summary>
-    /// Rejects a leave request
-    /// </summary>
-    /// <param name="leaveRequestId">Leave request ID</param>
-    /// <param name="approveDto">Rejection data</param>
-    /// <returns>Updated leave request DTO</returns>
-    Task<LeaveRequestDto> RejectLeaveRequestAsync(Guid leaveRequestId, ApproveLeaveRequestDto approveDto);
+    Task<LeaveRequestDto> UpdateLeaveRequestStatusAsync(Guid leaveRequestId, UpdateLeaveRequestStatusDto updateStatusDto);
 }
 

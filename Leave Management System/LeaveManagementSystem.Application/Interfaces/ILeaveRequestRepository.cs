@@ -18,3 +18,5 @@ public interface ILeaveRequestRepository : IRepository<LeaveRequest>
     Task<IEnumerable<LeaveRequestDto>> GetLeaveRequestsByUserIdWithDetailsAsync(Guid userId);
 }
 
+
+

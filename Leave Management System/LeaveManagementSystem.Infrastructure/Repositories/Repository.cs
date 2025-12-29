@@ -66,7 +66,26 @@ public class Repository<T> : IRepository<T> where T : class
     /// </summary>
     public virtual async Task UpdateAsync(T entity)
     {
-        _dbSet.Update(entity);
+        var entry = _context.Entry(entity);
+        if (entry.State == Microsoft.EntityFrameworkCore.EntityState.Detached)
+        {
+            // Entity is not tracked, attach it first
+            _dbSet.Attach(entity);
+        }
+        
+        // Mark all properties as modified except the primary key (Id)
+        entry.State = Microsoft.EntityFrameworkCore.EntityState.Modified;
+        
+        // Explicitly exclude primary key properties from being marked as modified
+        var primaryKey = entry.Metadata.FindPrimaryKey();
+        if (primaryKey != null)
+        {
+            foreach (var keyProperty in primaryKey.Properties)
+            {
+                entry.Property(keyProperty.Name).IsModified = false;
+            }
+        }
+        
         await _context.SaveChangesAsync();
     }
 

@@ -123,17 +123,50 @@ public class LeaveRequestsController : ControllerBase
     }
 
     /// <summary>
-    /// Approves a leave request.
+    /// Reviews a leave request (approve or reject).
     /// </summary>
     /// <param name="id">Leave request ID</param>
-    /// <param name="approveDto">Approval data</param>
+    /// <param name="reviewDto">Review data with status ("accept" or "reject") and optional admin comment</param>
     /// <returns>Updated leave request DTO</returns>
-    [HttpPost("{id}/approve")]
-    public async Task<ActionResult<LeaveRequestDto>> ApproveLeaveRequest(Guid id, [FromBody] ApproveLeaveRequestDto approveDto)
+    [HttpPost("{id}/review")]
+    [Consumes("application/json")]
+    [Produces("application/json")]
+    public async Task<ActionResult<LeaveRequestDto>> ReviewLeaveRequest(
+        Guid id, 
+        [FromBody] ReviewLeaveRequestDto reviewDto)
     {
         try
         {
-            var leaveRequest = await _leaveRequestService.ApproveLeaveRequestAsync(id, approveDto);
+            // Validate and convert status string to enum
+            Domain.Enums.LeaveRequestStatus status;
+            var statusLower = reviewDto.Status?.Trim().ToLowerInvariant();
+            
+            if (string.IsNullOrWhiteSpace(statusLower))
+            {
+                return BadRequest(new { error = "Status is required. Must be 'accept' or 'reject'", statusCode = 400 });
+            }
+
+            if (statusLower == "accept" || statusLower == "approve")
+            {
+                status = Domain.Enums.LeaveRequestStatus.Approved;
+            }
+            else if (statusLower == "reject")
+            {
+                status = Domain.Enums.LeaveRequestStatus.Rejected;
+            }
+            else
+            {
+                return BadRequest(new { error = "Status must be 'accept' or 'reject'", statusCode = 400 });
+            }
+
+            // Create UpdateLeaveRequestStatusDto from ReviewLeaveRequestDto
+            var updateStatusDto = new UpdateLeaveRequestStatusDto
+            {
+                Status = status,
+                AdminComment = reviewDto.AdminComment
+            };
+
+            var leaveRequest = await _leaveRequestService.UpdateLeaveRequestStatusAsync(id, updateStatusDto);
             return Ok(leaveRequest);
         }
         catch (KeyNotFoundException ex)
@@ -143,31 +176,16 @@ public class LeaveRequestsController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { error = ex.Message, statusCode = 400 });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message, statusCode = 400 });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "An unexpected error occurred", message = ex.Message, statusCode = 500 });
         }
     }
 
-    /// <summary>
-    /// Rejects a leave request.
-    /// </summary>
-    /// <param name="id">Leave request ID</param>
-    /// <param name="approveDto">Rejection data</param>
-    /// <returns>Updated leave request DTO</returns>
-    [HttpPost("{id}/reject")]
-    public async Task<ActionResult<LeaveRequestDto>> RejectLeaveRequest(Guid id, [FromBody] ApproveLeaveRequestDto approveDto)
-    {
-        try
-        {
-            var leaveRequest = await _leaveRequestService.RejectLeaveRequestAsync(id, approveDto);
-            return Ok(leaveRequest);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { error = ex.Message, statusCode = 404 });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { error = ex.Message, statusCode = 400 });
-        }
-    }
 }
 
